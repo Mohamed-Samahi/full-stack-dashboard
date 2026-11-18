@@ -9,6 +9,7 @@ type CreateUserOptions = {
     password?: string;
     role?: string;
     permissions?: string[];
+    hashPassword?: boolean;
 };
 
 export async function createTestUser(
@@ -20,6 +21,7 @@ export async function createTestUser(
         password = "TestPassword123!",
         role = process.env.DEFAULT_USER_ROLE ?? "USER",
         permissions = [],
+        hashPassword = true,
     } = options;
 
     const dbRole = await prisma.role.upsert({
@@ -54,7 +56,10 @@ export async function createTestUser(
         data: {
             name,
             email,
-            password: await bcrypt.hash(password, 10),
+            password: await bcrypt.hash(
+                password,
+                hashPassword ? 10 : 4
+            ),
             roleId: dbRole.id,
         },
         include: {

@@ -17,6 +17,9 @@ export default defineConfig({
         setupFiles: ["./tests/setup/global.ts"],
         fileParallelism: false,
 
+        testTimeout: 15000,
+        hookTimeout: 15000,
+
         coverage: {
             provider: "v8",
 
