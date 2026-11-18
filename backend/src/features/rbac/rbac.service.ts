@@ -412,8 +412,7 @@ const assignUserRole = async (
             );
         }
 
-        // The check and mutation execute under the same
-        // transaction lock.
+        // Protect the final administrator.
         if (
             user.role.name === "ADMIN" &&
             role.name !== "ADMIN"
@@ -432,6 +431,7 @@ const assignUserRole = async (
             }
         }
 
+        // Prevent employee demotion while active assignments exist.
         if (
             user.role.name === "EMPLOYEE" &&
             role.name !== "EMPLOYEE"
@@ -450,7 +450,7 @@ const assignUserRole = async (
 
             if (activeAssignment) {
                 throw new AppError(
-                    "Employees with active ticket assignments cannot be demoted",
+                    "Cannot change employee role while active ticket assignments exist",
                     409
                 );
             }
@@ -480,6 +480,7 @@ const assignUserRole = async (
             },
         });
     }, {
+        isolationLevel: "ReadCommitted",
         maxWait: 10000,
         timeout: 15000,
     });
@@ -493,8 +494,8 @@ const assignUserRole = async (
         await deleteUserVersion(updatedUser.id);
     } catch {
         logger.error(
-            "Role assignment committed, but user-version cache "
-            + "invalidation failed",
+            "Role assignment committed, but user-version cache " +
+            "invalidation failed",
             {
                 userId: updatedUser.id,
             }
