@@ -126,12 +126,55 @@ const toTicketCommentResponse = (
     createdAt: comment.createdAt.toISOString(),
 });
 
+type TicketAttachment = {
+    id: string;
+    ticketId: string;
+    fileName: string;
+    mimeType: string;
+    sizeBytes: number;
+    uploadedBy: TicketParticipant;
+    createdAt: string;
+};
+
+type AttachmentDownload = {
+    downloadUrl: string;
+    expiresAt: string;
+};
+
+const ticketAttachmentSelect = {
+    id: true,
+    ticketId: true,
+    fileName: true,
+    mimeType: true,
+    sizeBytes: true,
+
+    uploadedBy: {
+        select: ticketParticipantSelect,
+    },
+
+    createdAt: true,
+} satisfies Prisma.TicketAttachmentSelect;
+
+type TicketAttachmentRecord =
+    Prisma.TicketAttachmentGetPayload<{
+        select: typeof ticketAttachmentSelect;
+    }>;
+
+const toTicketAttachmentResponse = (
+    attachment: TicketAttachmentRecord
+): TicketAttachment => ({
+    ...attachment,
+    createdAt: attachment.createdAt.toISOString(),
+});
+
 export {
     ticketParticipantSelect,
     ticketSelect,
     toTicketResponse,
     ticketCommentSelect,
     toTicketCommentResponse,
+    ticketAttachmentSelect,
+    toTicketAttachmentResponse,
 };
 
 export type {
@@ -144,4 +187,7 @@ export type {
     TicketComment,
     TicketCommentRecord,
     TicketCommentEventMap,
+    TicketAttachment,
+    TicketAttachmentRecord,
+    AttachmentDownload,
 };

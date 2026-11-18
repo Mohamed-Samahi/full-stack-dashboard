@@ -33,6 +33,8 @@ model User {
 
   ticketComments TicketComment[]
 
+  ticketAttachments TicketAttachment[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -128,6 +130,8 @@ model Ticket {
 
   comments TicketComment[]
 
+  attachments TicketAttachment[]
+
   updatedById String?
   updatedBy   User?   @relation("TicketModifier", fields: [updatedById], references: [id], onDelete: Restrict)
 
@@ -148,6 +152,25 @@ model TicketComment {
 
   authorId String
   author   User   @relation(fields: [authorId], references: [id], onDelete: Restrict)
+
+  createdAt DateTime @default(now())
+
+  @@index([ticketId, createdAt, id])
+}
+
+model TicketAttachment {
+  id String @id @default(uuid())
+
+  ticketId String
+  ticket   Ticket @relation(fields: [ticketId], references: [id], onDelete: Restrict)
+
+  uploadedById String
+  uploadedBy   User   @relation(fields: [uploadedById], references: [id], onDelete: Restrict)
+
+  fileName   String
+  storageKey String @unique
+  mimeType   String
+  sizeBytes  Int
 
   createdAt DateTime @default(now())
 

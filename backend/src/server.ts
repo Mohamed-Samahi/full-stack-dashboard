@@ -18,6 +18,11 @@ import {
     closeCommentStreams,
 } from "./features/tickets/comments/comment.events.js";
 
+import {
+    startAttachmentCleanup,
+    stopAttachmentCleanup,
+} from "./features/tickets/attachments/attachment.cleanup.js";
+
 const PORT = process.env.PORT || 5000;
 
 process.on("uncaughtException", (error) => {
@@ -36,6 +41,8 @@ const startServer = async () => {
         await connectToRedis();
         logger.info("Redis connection established.");
 
+        startAttachmentCleanup();
+
         const server = app.listen(PORT, () => {
             logger.info(`Server is running on port ${PORT}`);
         });
@@ -48,6 +55,7 @@ const startServer = async () => {
             closeCommentStreams()
 
             server.close(async () => {
+                await stopAttachmentCleanup();
                 await disconnectFromDatabase();
                 process.exit(1);
             });
@@ -59,6 +67,7 @@ const startServer = async () => {
             closeCommentStreams()
 
             server.close(async () => {
+                await stopAttachmentCleanup();
                 await disconnectFromDatabase();
                 process.exit(0);
             });
@@ -70,6 +79,7 @@ const startServer = async () => {
             closeCommentStreams()
 
             server.close(async () => {
+                await stopAttachmentCleanup();
                 await disconnectFromDatabase();
                 process.exit(0);
             });
@@ -78,6 +88,8 @@ const startServer = async () => {
         logger.error("Failed to start server", {
             error,
         });
+
+        await stopAttachmentCleanup();
 
         await disconnectFromRedis();
         await disconnectFromDatabase();

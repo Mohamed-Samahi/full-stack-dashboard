@@ -29,6 +29,27 @@ export const errorHandler = (
         });
     }
 
+    const errorType =
+        "type" in error ? error.type : undefined;
+
+    if (errorType === "entity.too.large") {
+        return response.status(413).json({
+            status: "error",
+            message: "Request payload too large",
+        });
+    }
+
+    if (
+        errorType === "entity.parse.failed" ||
+        errorType === "request.aborted" ||
+        errorType === "request.size.invalid"
+    ) {
+        return response.status(400).json({
+            status: "error",
+            message: "Malformed request payload",
+        });
+    }
+
     // Unexpected errors
     logger.error("Unexpected application error", {
         error,

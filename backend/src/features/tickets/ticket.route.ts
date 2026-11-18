@@ -57,6 +57,21 @@ import {
     streamComments,
 } from "./comments/comment.controller.js";
 
+import {
+    uploadAttachment,
+} from "../../middlewares/upload.middleware.js";
+
+import {
+    attachmentParamsSchema,
+} from "./attachments/attachment.schema.js";
+
+import {
+    authorizeAttachmentUpload,
+    createAttachment,
+    getAttachments,
+    getAttachmentDownload,
+} from "./attachments/attachment.controller.js";
+
 const router = express.Router();
 
 const requireSupportedRole = (
@@ -169,6 +184,29 @@ router.get(
     authorize(PERMISSIONS.TICKET_READ),
     validate(ticketParamsSchema, "params"),
     streamComments
+);
+
+router.post(
+    "/:ticketId/attachments",
+    authorize(PERMISSIONS.TICKET_ATTACH),
+    validate(ticketParamsSchema, "params"),
+    authorizeAttachmentUpload,
+    uploadAttachment,
+    createAttachment
+);
+
+router.get(
+    "/:ticketId/attachments",
+    authorize(PERMISSIONS.TICKET_READ),
+    validate(ticketParamsSchema, "params"),
+    getAttachments
+);
+
+router.get(
+    "/:ticketId/attachments/:attachmentId/download",
+    authorize(PERMISSIONS.TICKET_READ),
+    validate(attachmentParamsSchema, "params"),
+    getAttachmentDownload
 );
 
 export default router;
