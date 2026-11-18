@@ -1,7 +1,12 @@
-import type { NextFunction, Request, Response } from "express";
+import type {
+    NextFunction,
+    Request,
+    Response,
+} from "express";
+
 import type { ZodType } from "zod";
 
-type RequestPart = "body" | "params";
+type RequestPart = "body" | "params" | "query";
 
 export const validate = (
     schema: ZodType,
@@ -9,14 +14,17 @@ export const validate = (
 ) => {
     return (
         request: Request,
-        _response: Response,
+        response: Response,
         next: NextFunction
     ) => {
         const result = schema.parse(request[part]);
 
-        // Body needs reassignment because schemas may transform values
         if (part === "body") {
             request.body = result;
+        }
+
+        if (part === "query") {
+            response.locals.validatedQuery = result;
         }
 
         next();

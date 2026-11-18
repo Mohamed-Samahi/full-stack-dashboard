@@ -35,6 +35,7 @@ import {
     updateTicketSchema,
     assignTicketSchema,
     updateTicketStatusSchema,
+    listTicketsQuerySchema,
 } from "./ticket.schema.js";
 
 import {
@@ -103,6 +104,7 @@ router.post(
 router.get(
     "/",
     authorize(PERMISSIONS.TICKET_READ),
+    validate(listTicketsQuerySchema, "query"),
     getTickets
 );
 

@@ -14,6 +14,7 @@ import type {
     UpdateTicketData,
     AssignTicketData,
     UpdateTicketStatusData,
+    ListTicketsQuery,
 } from "./ticket.schema.js";
 
 import * as ticketService from "./ticket.service.js";
@@ -69,8 +70,12 @@ const getTickets = async (
 ) => {
     const actor = getActor(request);
 
+    const query: ListTicketsQuery =
+        response.locals.validatedQuery;
+
     const result = await ticketService.getTickets(
-        actor
+        actor,
+        query
     );
 
     response.status(200).json(result);

@@ -33,6 +33,7 @@ import type {
     UpdateTicketData,
     AssignTicketData,
     UpdateTicketStatusData,
+    ListTicketsQuery,
 } from "./ticket.schema.js";
 
 import {
@@ -43,9 +44,6 @@ import {
     assertTicketAssignmentAllowed,
     assertTicketTransitionAllowed,
 } from "./ticket.authorization.js";
-
-const DEFAULT_PAGE = 1;
-const DEFAULT_LIMIT = 20;
 
 const TICKET_TRANSACTION_OPTIONS = {
     isolationLevel: "ReadCommitted",
@@ -212,13 +210,92 @@ const createTicket = async (
     });
 };
 
-const getTickets = async (
-    actor: TicketActor
-): Promise<TicketListResponse> => {
-    const where = getTicketVisibilityWhere(actor);
+const escapeSearchPattern = (
+    value: string
+): string => {
+    return value.replace(/[\\%_]/g, "\\$&");
+};
 
-    const page = DEFAULT_PAGE;
-    const limit = DEFAULT_LIMIT;
+const getTickets = async (
+    actor: TicketActor,
+    query: ListTicketsQuery
+): Promise<TicketListResponse> => {
+    const {
+        search,
+        status,
+        priority,
+        assigneeId,
+        assignment,
+        page,
+        limit,
+        sortBy,
+        sortOrder,
+    } = query;
+
+    const filters: Prisma.TicketWhereInput[] = [
+        getTicketVisibilityWhere(actor),
+    ];
+
+    if (status !== undefined) {
+        filters.push({ status });
+    }
+
+    if (priority !== undefined) {
+        filters.push({ priority });
+    }
+
+    if (assigneeId !== undefined) {
+        filters.push({ assigneeId });
+    }
+
+    if (assignment === "assigned") {
+        filters.push({
+            assigneeId: {
+                not: null,
+            },
+        });
+    }
+
+    if (assignment === "unassigned") {
+        filters.push({
+            assigneeId: null,
+        });
+    }
+
+    if (search !== undefined) {
+        const escapedSearch =
+            escapeSearchPattern(search);
+
+        filters.push({
+            OR: [
+                {
+                    title: {
+                        contains: escapedSearch,
+                        mode: "insensitive",
+                    },
+                },
+                {
+                    description: {
+                        contains: escapedSearch,
+                        mode: "insensitive",
+                    },
+                },
+            ],
+        });
+    }
+
+    const where: Prisma.TicketWhereInput = {
+        AND: filters,
+    };
+
+    const orderBy: Prisma.TicketOrderByWithRelationInput[] = [
+        {
+            [sortBy]: sortOrder,
+        },
+        {
+            id: sortOrder,
+        },
+    ];
 
     const [total, tickets] = await prisma.$transaction(
         [
@@ -229,10 +306,7 @@ const getTickets = async (
             prisma.ticket.findMany({
                 where,
                 select: ticketSelect,
-                orderBy: [
-                    { createdAt: "desc" },
-                    { id: "desc" },
-                ],
+                orderBy,
                 skip: (page - 1) * limit,
                 take: limit,
             }),
