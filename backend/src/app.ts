@@ -3,6 +3,7 @@ import cookieParser from "cookie-parser";
 
 import authRouter from "./features/auth/auth.route.js";
 import rbacRouter from "./features/rbac/rbac.route.js";
+import ticketRouter from "./features/tickets/ticket.route.js";
 
 import { errorHandler } from "./middlewares/error.middleware.js";
 
@@ -21,6 +22,9 @@ app.use("/api/v1/auth", authRouter);
 
 // RBAC routes
 app.use("/api/v1/rbac", rbacRouter);
+
+// Ticket routes
+app.use("/api/v1/tickets", ticketRouter);
 
 app.use((_request, _response) => {
     throw new AppError("Not found", 404);

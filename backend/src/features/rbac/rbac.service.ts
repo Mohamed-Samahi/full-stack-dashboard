@@ -432,6 +432,30 @@ const assignUserRole = async (
             }
         }
 
+        if (
+            user.role.name === "EMPLOYEE" &&
+            role.name !== "EMPLOYEE"
+        ) {
+            const activeAssignment = await tx.ticket.findFirst({
+                where: {
+                    assigneeId: user.id,
+                    status: {
+                        not: "CLOSED",
+                    },
+                },
+                select: {
+                    id: true,
+                },
+            });
+
+            if (activeAssignment) {
+                throw new AppError(
+                    "Employees with active ticket assignments cannot be demoted",
+                    409
+                );
+            }
+        }
+
         // Role change and token invalidation are atomic.
         return tx.user.update({
             where: {

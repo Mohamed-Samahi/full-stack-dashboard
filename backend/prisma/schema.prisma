@@ -27,6 +27,10 @@ model User {
 
   passwordResetTokens PasswordResetToken[]
 
+  requestedTickets Ticket[] @relation("TicketRequester")
+  assignedTickets  Ticket[] @relation("TicketAssignee")
+  modifiedTickets  Ticket[] @relation("TicketModifier")
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -92,4 +96,41 @@ model RolePermission {
   permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
 
   @@id([roleId, permissionId])
+}
+
+enum TicketStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+}
+
+enum TicketPriority {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+model Ticket {
+  id          String         @id @default(uuid())
+  title       String         @db.VarChar(200)
+  description String         @db.Text
+  status      TicketStatus   @default(OPEN)
+  priority    TicketPriority @default(MEDIUM)
+
+  requesterId String
+  requester   User   @relation("TicketRequester", fields: [requesterId], references: [id], onDelete: Restrict)
+
+  assigneeId String?
+  assignee   User?   @relation("TicketAssignee", fields: [assigneeId], references: [id], onDelete: Restrict)
+
+  updatedById String?
+  updatedBy   User?   @relation("TicketModifier", fields: [updatedById], references: [id], onDelete: Restrict)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([requesterId, createdAt])
+  @@index([assigneeId, status, createdAt])
+  @@index([createdAt, id])
 }
