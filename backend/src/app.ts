@@ -6,6 +6,8 @@ import rbacRouter from "./features/rbac/rbac.route.js";
 
 import { errorHandler } from "./middlewares/error.middleware.js";
 
+import { AppError } from "./errors/AppError.js";
+
 const app = express();
 
 // Global middleware
@@ -19,6 +21,10 @@ app.use("/api/v1/auth", authRouter);
 
 // RBAC routes
 app.use("/api/v1/rbac", rbacRouter);
+
+app.use((_request, _response) => {
+    throw new AppError("Not found", 404);
+});
 
 // Global error handler
 // IMPORTANT: Must be registered after the routes

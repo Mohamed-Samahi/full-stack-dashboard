@@ -4,6 +4,8 @@ import bcrypt from "bcryptjs";
 import { prisma } from "../../config/db.js";
 import { AppError } from "../../errors/AppError.js";
 
+import { Prisma } from "../../generated/prisma/client.js";
+
 import {
     createUserAccessToken,
     createUserSession,
@@ -46,49 +48,61 @@ const findUserByEmail = async (email: string) => {
 };
 
 const registerUser = async (data: RegisterData) => {
-    const existingUser = await findUserByEmail(data.email);
+    const existingUser = await prisma.user.findUnique({
+        where: { email: data.email },
+        select: { id: true },
+    });
 
     if (existingUser) {
         throw new AppError("User already exists", 409);
     }
 
-    const defaultRoleName = process.env.DEFAULT_USER_ROLE;
-
-    if (!defaultRoleName) {
-        throw new Error("DEFAULT_USER_ROLE is not defined");
-    }
-
     const defaultRole = await prisma.role.findUnique({
-        where: { name: defaultRoleName },
+        where: { name: "USER" },
+        select: { id: true },
     });
 
     if (!defaultRole) {
-        throw new AppError("Default USER role is not configured", 500);
+        throw new AppError(
+            "Default USER role is not configured",
+            500
+        );
     }
 
     const hashedPassword = await bcrypt.hash(data.password, 10);
 
-    return prisma.user.create({
-        data: {
-            name: data.name ?? null,
-            email: data.email,
-            password: hashedPassword,
-            roleId: defaultRole.id,
-        },
-        select: {
-            id: true,
-            name: true,
-            email: true,
-            role: {
-                select: {
-                    id: true,
-                    name: true,
-                },
+    try {
+        return await prisma.user.create({
+            data: {
+                name: data.name ?? null,
+                email: data.email,
+                password: hashedPassword,
+                roleId: defaultRole.id,
             },
-            createdAt: true,
-            updatedAt: true,
-        },
-    });
+            select: {
+                id: true,
+                name: true,
+                email: true,
+                role: {
+                    select: {
+                        id: true,
+                        name: true,
+                    },
+                },
+                createdAt: true,
+                updatedAt: true,
+            },
+        });
+    } catch (error) {
+        if (
+            error instanceof Prisma.PrismaClientKnownRequestError &&
+            error.code === "P2002"
+        ) {
+            throw new AppError("User already exists", 409);
+        }
+
+        throw error;
+    }
 };
 
 const loginUser = async (data: LoginData) => {
