@@ -132,4 +132,25 @@ describe("POST /api/v1/auth/login", () => {
             "Validation failed"
         );
     });
+
+    it("should authenticate using normalized email variations", async () => {
+        const { user, plainPassword } = await createTestUser({
+            email: "test@example.com",
+        });
+
+        const response = await api
+            .post(endpoint)
+            .send({
+                email: "  TEST@Example.COM  ",
+                password: plainPassword,
+            })
+            .expect(200);
+
+        const payload = verifyAccessToken(
+            response.body.data.accessToken
+        );
+
+        expect(payload.userId).toBe(user.id);
+        expect(response.headers["set-cookie"]).toBeDefined();
+    });
 });

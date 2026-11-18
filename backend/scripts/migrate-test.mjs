@@ -20,7 +20,13 @@ if (
 
 const result = spawnSync(
     process.execPath,
-    ["./node_modules/prisma/build/index.js", "migrate", "deploy"],
+    [
+        "./node_modules/prisma/build/index.js",
+        "migrate",
+        "deploy",
+        "--config",
+        "prisma7.config.ts",
+    ],
     {
         stdio: "inherit",
         env: process.env,
