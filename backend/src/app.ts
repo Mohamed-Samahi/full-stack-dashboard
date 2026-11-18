@@ -4,6 +4,7 @@ import cookieParser from "cookie-parser";
 import authRouter from "./features/auth/auth.route.js";
 import rbacRouter from "./features/rbac/rbac.route.js";
 import ticketRouter from "./features/tickets/ticket.route.js";
+import dashboardRouter from "./features/dashboard/dashboard.route.js";
 
 import { errorHandler } from "./middlewares/error.middleware.js";
 
@@ -25,6 +26,9 @@ app.use("/api/v1/rbac", rbacRouter);
 
 // Ticket routes
 app.use("/api/v1/tickets", ticketRouter);
+
+// Dashboard routes
+app.use("/api/v1/dashboard", dashboardRouter);
 
 app.use((_request, _response) => {
     throw new AppError("Not found", 404);
