@@ -1,16 +1,11 @@
-import type { NextFunction, Request, Response } from "express";
+import type {
+    NextFunction,
+    Request,
+    Response,
+} from "express";
 
 import { prisma } from "../config/db.js";
-
 import { AppError } from "../errors/AppError.js";
-
-import {
-    getRoleVersion,
-    setRoleVersion,
-    getUserVersion,
-    setUserVersion,
-} from "../utils/authVersion.js";
-
 import { verifyAccessToken } from "../utils/jwt.js";
 
 const authenticate = async (
@@ -38,71 +33,44 @@ const authenticate = async (
         throw new AppError("Invalid or expired token", 401);
     }
 
-    let currentRoleVersion = await getRoleVersion(
-        payload.roleId
-    );
-
-    // Redis cache miss: restore the version from PostgreSQL.
-    if (currentRoleVersion === null) {
-        const role = await prisma.role.findUnique({
-            where: {
-                id: payload.roleId,
-            },
-            select: {
-                authVersion: true,
-            },
-        });
-
-        if (!role) {
-            throw new AppError("Invalid or revoked token", 401);
-        }
-
-        currentRoleVersion = role.authVersion;
-
-        await setRoleVersion(
-            payload.roleId,
-            currentRoleVersion
-        );
-    }
-
-    if (payload.roleVersion !== currentRoleVersion) {
+    if (typeof payload.userId !== "string" || !payload.userId) {
         throw new AppError("Invalid or revoked token", 401);
     }
 
-    let currentUserVersion = await getUserVersion(
-        payload.userId
-    );
-
-    // Redis cache miss: restore the version from PostgreSQL.
-    if (currentUserVersion === null) {
-        const user = await prisma.user.findUnique({
-            where: {
-                id: payload.userId,
+    const user = await prisma.user.findUnique({
+        where: {
+            id: payload.userId,
+        },
+        select: {
+            id: true,
+            roleId: true,
+            authVersion: true,
+            role: {
+                select: {
+                    name: true,
+                    authVersion: true,
+                },
             },
-            select: {
-                authVersion: true,
-            },
-        });
+        },
+    });
 
-        if (!user) {
-            throw new AppError("Invalid or revoked token", 401);
-        }
-
-        currentUserVersion = user.authVersion;
-
-        await setUserVersion(
-            payload.userId,
-            currentUserVersion
-        );
-    }
-
-    if (payload.userVersion !== currentUserVersion) {
+    if (
+        !user ||
+        user.roleId !== payload.roleId ||
+        user.authVersion !== payload.userVersion ||
+        user.role.authVersion !== payload.roleVersion ||
+        user.role.name !== payload.role ||
+        !Array.isArray(payload.permissions) ||
+        !payload.permissions.every(
+            (permission) => typeof permission === "string"
+        )
+    ) {
         throw new AppError("Invalid or revoked token", 401);
     }
 
     request.user = {
-        id: payload.userId,
-        role: payload.role,
+        id: user.id,
+        role: user.role.name,
         permissions: payload.permissions,
     };
 

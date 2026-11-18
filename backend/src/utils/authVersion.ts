@@ -26,9 +26,10 @@ const setRoleVersion = async (
 };
 
 const deleteRoleVersion = async (
-    roleId: string
+    roleId: string,
+    client: Pick<typeof redis, "del"> = redis
 ): Promise<void> => {
-    await redis.del(getRoleVersionKey(roleId));
+    await client.del(getRoleVersionKey(roleId));
 };
 
 const getUserVersionKey = (userId: string) =>
@@ -56,10 +57,17 @@ const setUserVersion = async (
     );
 };
 
+const deleteUserVersion = async (
+    userId: string
+): Promise<void> => {
+    await redis.del(getUserVersionKey(userId));
+};
+
 export {
     getRoleVersion,
     setRoleVersion,
     deleteRoleVersion,
     getUserVersion,
     setUserVersion,
+    deleteUserVersion,
 };

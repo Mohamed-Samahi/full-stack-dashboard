@@ -18,7 +18,8 @@
     "docker:dev:up": "docker compose -f docker-compose.yml up -d",
     "docker:dev:down": "docker compose -f docker-compose.yml stop",
     "docker:test:up": "docker compose -f docker-compose.test.yml up -d --wait",
-    "docker:test:down": "docker compose -f docker-compose.test.yml stop"
+    "docker:test:down": "docker compose -f docker-compose.test.yml stop",
+    "admin:provision": "tsx prisma/provision-admin.ts"
   },
   "keywords": [],
   "author": "",

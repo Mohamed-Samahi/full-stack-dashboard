@@ -1,73 +1,87 @@
 import express from "express";
 
+import type {
+    Request,
+    Response,
+    NextFunction,
+} from "express";
+
 import { authenticate } from "../../middlewares/auth.middleware.js";
 import { authorize } from "../../middlewares/authorize.middleware.js";
-
 import { validate } from "../../middlewares/validate.middleware.js";
 
+import { AppError } from "../../errors/AppError.js";
+
 import {
-    createNewRole,
-    deleteExistingRole,
     getAllPermissions,
     getAllRoles,
-    updateExistingRole,
     assignRoleToUser,
     getAllUsers,
 } from "./rbac.controller.js";
 
 import {
-    createRoleSchema,
-    updateRoleSchema,
     assignUserRoleSchema,
+    userParamsSchema,
 } from "./rbac.schema.js";
+
+import { PERMISSIONS } from "./rbac.constants.js";
 
 const router = express.Router();
 
-router.use(authenticate);
+const requireAdmin = (
+    request: Request,
+    _response: Response,
+    next: NextFunction
+) => {
+    if (!request.user) {
+        throw new AppError("Authentication required", 401);
+    }
+
+    if (request.user.role !== "ADMIN") {
+        throw new AppError("Forbidden", 403);
+    }
+
+    next();
+};
+
+const adminAccess = [
+    authenticate,
+    requireAdmin,
+];
 
 router.get(
     "/permissions",
-    authorize("permission:read"),
+    ...adminAccess,
+    authorize(PERMISSIONS.PERMISSION_READ),
     getAllPermissions
 );
 
 router.get(
     "/roles",
-    authorize("role:read"),
+    ...adminAccess,
+    authorize(PERMISSIONS.ROLE_READ),
     getAllRoles
-);
-
-router.post(
-    "/roles",
-    authorize("role:create"),
-    validate(createRoleSchema),
-    createNewRole
-);
-
-router.patch(
-    "/roles/:roleId",
-    authorize("role:update"),
-    validate(updateRoleSchema),
-    updateExistingRole
-);
-
-router.delete(
-    "/roles/:roleId",
-    authorize("role:delete"),
-    deleteExistingRole
-);
-
-router.patch(
-    "/users/:userId/role",
-    authorize("user:update"),
-    validate(assignUserRoleSchema),
-    assignRoleToUser
 );
 
 router.get(
     "/users",
-    authorize("user:read"),
+    ...adminAccess,
+    authorize(PERMISSIONS.USER_READ),
     getAllUsers
 );
+
+router.patch(
+    "/users/:userId/role",
+    ...adminAccess,
+    authorize(PERMISSIONS.USER_UPDATE),
+    validate(userParamsSchema, "params"),
+    validate(assignUserRoleSchema),
+    assignRoleToUser
+);
+
+// Unsupported RBAC routes return the shared JSON error format.
+router.use((_request, _response) => {
+    throw new AppError("Not found", 404);
+});
 
 export default router;

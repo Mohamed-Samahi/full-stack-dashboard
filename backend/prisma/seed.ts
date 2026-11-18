@@ -1,171 +1,211 @@
-import { PrismaClient } from "../src/generated/prisma/client.js";
-import { PrismaPg } from "@prisma/adapter-pg";
-import bcrypt from "bcryptjs";
 import "dotenv/config";
 
-const adapter = new PrismaPg({
-    connectionString: process.env.DATABASE_URL!,
-});
+import { createClient } from "redis";
 
-const prisma = new PrismaClient({ adapter });
+import { prisma } from "../src/config/db.js";
+
+import {
+    PREDEFINED_ROLES,
+    PERMISSION_DEFINITIONS,
+    ROLE_PERMISSIONS,
+} from "../src/features/rbac/rbac.constants.js";
+
+import {
+    lockRbacConfiguration,
+} from "../src/features/rbac/rbac.lock.js";
+
+import {
+    deleteRoleVersion,
+} from "../src/utils/authVersion.js";
+
+const seedRbac = async () => {
+    return prisma.$transaction(async (tx) => {
+        await lockRbacConfiguration(tx);
+
+        const permissionMap = new Map<string, string>();
+
+        // 1. Synchronize supported permission definitions.
+        for (const [key, description] of Object.entries(
+            PERMISSION_DEFINITIONS
+        )) {
+            const permission = await tx.permission.upsert({
+                where: { key },
+                update: { description },
+                create: { key, description },
+                select: { id: true },
+            });
+
+            permissionMap.set(key, permission.id);
+        }
+
+        const roleIds: string[] = [];
+
+        // 2. Synchronize predefined roles and permission mappings.
+        for (const roleName of PREDEFINED_ROLES) {
+            const role = await tx.role.upsert({
+                where: {
+                    name: roleName,
+                },
+                update: {},
+                create: {
+                    name: roleName,
+                },
+                select: {
+                    id: true,
+                },
+            });
+
+            roleIds.push(role.id);
+
+            const requiredPermissionIds = ROLE_PERMISSIONS[
+                roleName
+            ].map((key) => {
+                const permissionId = permissionMap.get(key);
+
+                if (!permissionId) {
+                    throw new Error(
+                        `Permission '${key}' is not configured`
+                    );
+                }
+
+                return permissionId;
+            });
+
+            const currentMappings =
+                await tx.rolePermission.findMany({
+                    where: {
+                        roleId: role.id,
+                    },
+                    select: {
+                        permissionId: true,
+                    },
+                });
+
+            const currentIds = new Set(
+                currentMappings.map(
+                    (mapping) => mapping.permissionId
+                )
+            );
+
+            const requiredIds = new Set(requiredPermissionIds);
+
+            const obsoleteIds = [...currentIds].filter(
+                (id) => !requiredIds.has(id)
+            );
+
+            const missingIds = requiredPermissionIds.filter(
+                (id) => !currentIds.has(id)
+            );
+
+            // Unchanged permissions must preserve authVersion.
+            if (
+                obsoleteIds.length === 0 &&
+                missingIds.length === 0
+            ) {
+                continue;
+            }
+
+            // 3. Remove obsolete mappings.
+            if (obsoleteIds.length > 0) {
+                await tx.rolePermission.deleteMany({
+                    where: {
+                        roleId: role.id,
+                        permissionId: {
+                            in: obsoleteIds,
+                        },
+                    },
+                });
+            }
+
+            // 4. Insert missing mappings.
+            if (missingIds.length > 0) {
+                await tx.rolePermission.createMany({
+                    data: missingIds.map((permissionId) => ({
+                        roleId: role.id,
+                        permissionId,
+                    })),
+                });
+            }
+
+            // 5. Atomically invalidate existing access tokens.
+            await tx.role.update({
+                where: {
+                    id: role.id,
+                },
+                data: {
+                    authVersion: {
+                        increment: 1,
+                    },
+                },
+            });
+        }
+
+        return roleIds;
+    }, {
+        maxWait: 10000,
+        timeout: 30000,
+    });
+};
 
 const main = async () => {
-    // 1. Create roles
-    const adminRole = await prisma.role.upsert({
-        where: { name: "ADMIN" },
-        update: {},
-        create: { name: "ADMIN" },
-    });
+    const redisUrl = process.env.REDIS_URL;
 
-    const employeeRole = await prisma.role.upsert({
-        where: { name: "EMPLOYEE" },
-        update: {},
-        create: { name: "EMPLOYEE" },
-    });
+    if (!redisUrl) {
+        throw new Error("REDIS_URL is not defined");
+    }
 
-    const userRole = await prisma.role.upsert({
-        where: { name: "USER" },
-        update: {},
-        create: { name: "USER" },
-    });
+    // PostgreSQL changes must commit before cache invalidation.
+    const roleIds = await seedRbac();
 
-    // 2. Create permissions
-    const permissionData = [
-        {
-            key: "user:read",
-            description: "Read users",
-        },
-        {
-            key: "user:create",
-            description: "Create users",
-        },
-        {
-            key: "user:update",
-            description: "Update users",
-        },
-        {
-            key: "role:read",
-            description: "Read roles",
-        },
-        {
-            key: "role:create",
-            description: "Create roles",
-        },
-        {
-            key: "role:update",
-            description: "Update roles",
-        },
-        {
-            key: "role:delete",
-            description: "Delete roles",
-        },
-        {
-            key: "permission:read",
-            description: "Read permissions",
-        },
-    ];
+    console.log("RBAC database synchronization completed.");
 
-    const permissions = await Promise.all(
-        permissionData.map((permission) =>
-            prisma.permission.upsert({
-                where: {
-                    key: permission.key,
-                },
-                update: {
-                    description: permission.description,
-                },
-                create: permission,
-            })
-        )
-    );
-
-    const permissionMap = new Map(
-        permissions.map((permission) => [
-            permission.key,
-            permission.id,
-        ])
-    );
-
-    // 3. Assign permissions to ADMIN
-    const adminPermissionKeys = [
-        "user:read",
-        "user:create",
-        "user:update",
-        "role:read",
-        "role:create",
-        "role:update",
-        "role:delete",
-        "permission:read",
-    ];
-
-    await prisma.rolePermission.createMany({
-        data: adminPermissionKeys.map((key) => ({
-            roleId: adminRole.id,
-            permissionId: permissionMap.get(key)!,
-        })),
-        skipDuplicates: true,
-    });
-
-    // 4. Assign permissions to EMPLOYEE
-    await prisma.rolePermission.createMany({
-        data: [
-            {
-                roleId: employeeRole.id,
-                permissionId: permissionMap.get("user:read")!,
-            },
-        ],
-        skipDuplicates: true,
-    });
-
-    // USER intentionally has no permissions
-
-    // 5. Create test users
-    const password = await bcrypt.hash("Password123!", 10);
-
-    await prisma.user.upsert({
-        where: {
-            email: "admin@example.com",
-        },
-        update: {},
-        create: {
-            name: "Admin",
-            email: "admin@example.com",
-            password,
-            roleId: adminRole.id,
+    // Dedicated CLI connection without indefinite reconnection.
+    const cacheClient = createClient({
+        url: redisUrl,
+        disableOfflineQueue: true,
+        socket: {
+            connectTimeout: 5000,
+            reconnectStrategy: false,
         },
     });
 
-    await prisma.user.upsert({
-        where: {
-            email: "employee@example.com",
-        },
-        update: {},
-        create: {
-            name: "Employee",
-            email: "employee@example.com",
-            password,
-            roleId: employeeRole.id,
-        },
+    cacheClient.on("error", () => {
+        console.error("Redis connection error during RBAC seeding.");
     });
 
-    await prisma.user.upsert({
-        where: {
-            email: "user@example.com",
-        },
-        update: {},
-        create: {
-            name: "User",
-            email: "user@example.com",
-            password,
-            roleId: userRole.id,
-        },
-    });
+    try {
+        await cacheClient.connect();
 
-    console.log("RBAC seed completed.");
+        // Invalidate all predefined roles, including unchanged
+        // roles, so reruns can recover from previous failures.
+        for (const roleId of roleIds) {
+            await deleteRoleVersion(roleId, cacheClient);
+        }
+
+        console.log("RBAC cache invalidation completed.");
+    } catch {
+        console.error(
+            "Database changes committed, but Redis invalidation failed."
+        );
+
+        console.error(
+            "Access-token verification remains protected by PostgreSQL. "
+            + "Rerun the seed after restoring Redis."
+        );
+
+        process.exitCode = 1;
+    } finally {
+        if (cacheClient.isOpen) {
+            cacheClient.destroy();
+        }
+    }
 };
 
 main()
-    .catch(console.error)
+    .catch((error) => {
+        console.error("RBAC seeding failed:", error);
+        process.exitCode = 1;
+    })
     .finally(async () => {
         await prisma.$disconnect();
     });

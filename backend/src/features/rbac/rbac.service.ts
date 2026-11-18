@@ -1,14 +1,33 @@
 import { prisma } from "../../config/db.js";
 import { AppError } from "../../errors/AppError.js";
 
+import { redis } from "../../config/redis.js";
+import logger from "../../config/logger.js";
+
+import {
+    PREDEFINED_ROLES,
+    PERMISSIONS,
+    PERMISSION_DEFINITIONS,
+    isPredefinedRole,
+} from "./rbac.constants.js";
+
+import {
+    lockRbacConfiguration,
+} from "./rbac.lock.js";
+
 import {
     deleteRoleVersion,
     setRoleVersion,
-    setUserVersion,
+    deleteUserVersion,
 } from "../../utils/authVersion.js";
 
 const getPermissions = async () => {
     return prisma.permission.findMany({
+        where: {
+            key: {
+                in: Object.keys(PERMISSION_DEFINITIONS),
+            },
+        },
         select: {
             id: true,
             key: true,
@@ -22,16 +41,35 @@ const getPermissions = async () => {
 
 const getRoles = async () => {
     const roles = await prisma.role.findMany({
+        where: {
+            name: {
+                in: [...PREDEFINED_ROLES],
+            },
+        },
         select: {
             id: true,
             name: true,
             permissions: {
+                where: {
+                    permission: {
+                        key: {
+                            in: Object.keys(
+                                PERMISSION_DEFINITIONS
+                            ),
+                        },
+                    },
+                },
                 select: {
                     permission: {
                         select: {
                             key: true,
                             description: true,
                         },
+                    },
+                },
+                orderBy: {
+                    permission: {
+                        key: "asc",
                     },
                 },
             },
@@ -281,61 +319,163 @@ const deleteRole = async (roleId: string) => {
 
 const assignUserRole = async (
     userId: string,
-    roleId: string
+    roleId: string,
+    actorId: string
 ) => {
-    const [user, role] = await Promise.all([
-        prisma.user.findUnique({
+    const updatedUser = await prisma.$transaction(async (tx) => {
+        await lockRbacConfiguration(tx);
+
+        // Recheck administrative authorization after acquiring
+        // the lock to protect against concurrent role changes.
+        const actor = await tx.user.findUnique({
             where: {
-                id: userId,
+                id: actorId,
             },
-        }),
-        prisma.role.findUnique({
-            where: {
-                id: roleId,
+            select: {
+                role: {
+                    select: {
+                        name: true,
+                        permissions: {
+                            where: {
+                                permission: {
+                                    key: PERMISSIONS.USER_UPDATE,
+                                },
+                            },
+                            select: {
+                                permissionId: true,
+                            },
+                        },
+                    },
+                },
             },
-        }),
-    ]);
+        });
 
-    if (!user) {
-        throw new AppError("User not found", 404);
-    }
+        if (
+            !actor ||
+            actor.role.name !== "ADMIN" ||
+            actor.role.permissions.length === 0
+        ) {
+            throw new AppError("Forbidden", 403);
+        }
 
-    if (!role) {
-        throw new AppError("Role not found", 404);
-    }
+        // ADMIN cannot modify their own role.
+        if (userId === actorId) {
+            throw new AppError(
+                "Administrators cannot change their own role",
+                403
+            );
+        }
 
-    if (user.roleId === roleId) {
-        throw new AppError("User already has this role", 409);
-    }
+        const [user, role] = await Promise.all([
+            tx.user.findUnique({
+                where: {
+                    id: userId,
+                },
+                select: {
+                    id: true,
+                    roleId: true,
+                    role: {
+                        select: {
+                            name: true,
+                        },
+                    },
+                },
+            }),
 
-    const updatedUser = await prisma.user.update({
-        where: {
-            id: userId,
-        },
-        data: {
-            roleId,
-            authVersion: {
-                increment: 1,
-            },
-        },
-        select: {
-            id: true,
-            name: true,
-            email: true,
-            authVersion: true,
-            role: {
+            tx.role.findUnique({
+                where: {
+                    id: roleId,
+                },
                 select: {
                     id: true,
                     name: true,
                 },
+            }),
+        ]);
+
+        if (!user) {
+            throw new AppError("User not found", 404);
+        }
+
+        if (!role) {
+            throw new AppError("Role not found", 404);
+        }
+
+        if (!isPredefinedRole(role.name)) {
+            throw new AppError("Unsupported target role", 400);
+        }
+
+        if (user.roleId === roleId) {
+            throw new AppError(
+                "User already has this role",
+                409
+            );
+        }
+
+        // The check and mutation execute under the same
+        // transaction lock.
+        if (
+            user.role.name === "ADMIN" &&
+            role.name !== "ADMIN"
+        ) {
+            const adminCount = await tx.user.count({
+                where: {
+                    roleId: user.roleId,
+                },
+            });
+
+            if (adminCount <= 1) {
+                throw new AppError(
+                    "The final administrator cannot be demoted",
+                    409
+                );
+            }
+        }
+
+        // Role change and token invalidation are atomic.
+        return tx.user.update({
+            where: {
+                id: userId,
             },
-        },
+            data: {
+                roleId,
+                authVersion: {
+                    increment: 1,
+                },
+            },
+            select: {
+                id: true,
+                name: true,
+                email: true,
+                role: {
+                    select: {
+                        id: true,
+                        name: true,
+                    },
+                },
+            },
+        });
+    }, {
+        maxWait: 10000,
+        timeout: 15000,
     });
 
-    await setUserVersion(
-        updatedUser.id,
-        updatedUser.authVersion
-    );
+    // Redis invalidation is performed only after commit.
+    try {
+        if (!redis.isReady) {
+            throw new Error("Redis is not ready");
+        }
+
+        await deleteUserVersion(updatedUser.id);
+    } catch {
+        logger.error(
+            "Role assignment committed, but user-version cache "
+            + "invalidation failed",
+            {
+                userId: updatedUser.id,
+            }
+        );
+    }
 
     return updatedUser;
 };

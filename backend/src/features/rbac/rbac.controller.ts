@@ -10,6 +10,8 @@ import {
     getUsers,
 } from "./rbac.service.js";
 
+import { AppError } from "../../errors/AppError.js";
+
 const getAllPermissions = async (_request: Request, response: Response) => {
     const permissions = await getPermissions();
 
@@ -52,15 +54,20 @@ const deleteExistingRole = async (request: Request<{ roleId: string }>, response
 };
 
 const assignRoleToUser = async (
-    request: Request,
+    request: Request<{ userId: string }>,
     response: Response
 ) => {
+    if (!request.user) {
+        throw new AppError("Authentication required", 401);
+    }
+
     const { userId } = request.params;
     const { roleId } = request.body;
 
     const user = await assignUserRole(
-        userId as string,
-        roleId
+        userId,
+        roleId,
+        request.user.id
     );
 
     return response.status(200).json({
