@@ -1,4 +1,7 @@
-import { prisma } from "../../../config/db.js";
+import {
+    withTicketTransaction,
+} from "../ticket.service.js";
+
 import logger from "../../../config/logger.js";
 
 import {
@@ -20,28 +23,35 @@ const removeUnreferencedObject = async (
     storageKey: string
 ): Promise<boolean> => {
     try {
-        const attachment =
-            await prisma.ticketAttachment.findUnique({
-                where: { storageKey },
-                select: { id: true },
-            });
+        return await withTicketTransaction(async (tx) => {
+            // The shared transaction lock ensures that any
+            // previous attachment transaction has completed.
+            const attachment =
+                await tx.ticketAttachment.findUnique({
+                    where: { storageKey },
+                    select: { id: true },
+                });
 
-        // Protect successfully committed attachments,
-        // including ambiguous transaction outcomes.
-        if (attachment) {
+            if (attachment) {
+                return true;
+            }
+
+            // Keep the lock until object removal completes.
+            const { error } = await getStorageBucket()
+                .remove([storageKey]);
+
+            if (error) {
+                throw new Error(
+                    "Storage removal failed"
+                );
+            }
+
             return true;
-        }
-
-        const { error } = await getStorageBucket()
-            .remove([storageKey]);
-
-        if (error) {
-            throw new Error("Storage removal failed");
-        }
-
-        return true;
+        });
     } catch {
-        logger.error("Attachment cleanup failed", {
+        // If database state cannot be established safely,
+        // defer removal to the next reconciliation cycle.
+        logger.error("Attachment cleanup deferred", {
             storageKey,
         });
 

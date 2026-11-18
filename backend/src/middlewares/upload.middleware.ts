@@ -21,7 +21,7 @@ const upload = multer({
     storage: multer.memoryStorage(),
 
     limits: {
-        fileSize: MAX_FILE_SIZE,
+        fileSize: MAX_FILE_SIZE + 1,
         files: 1,
         fields: 0,
         parts: 2,
@@ -138,6 +138,17 @@ const uploadAttachment = (
 
         if (!request.file) {
             finish(new AppError("A file is required", 400));
+            return;
+        }
+
+        if (request.file.buffer.length > MAX_FILE_SIZE) {
+            finish(
+                new AppError(
+                    "File exceeds size limit",
+                    413
+                )
+            );
+
             return;
         }
 
