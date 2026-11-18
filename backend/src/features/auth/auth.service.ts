@@ -26,6 +26,7 @@ import type {
     LoginData,
     RegisterData,
     ChangePasswordData,
+    UpdateProfileData,
 } from "./auth.schema.js";
 
 import { setUserVersion } from "../../utils/authVersion.js";
@@ -165,6 +166,26 @@ const getCurrentUser = async (userId: string) => {
         createdAt: user.createdAt,
         updatedAt: user.updatedAt,
     };
+};
+
+const updateUserProfile = async (
+    userId: string,
+    data: UpdateProfileData
+) => {
+    await prisma.user.updateMany({
+        where: {
+            id: userId,
+            OR: [
+                { name: null },
+                { name: { not: data.name } },
+            ],
+        },
+        data: {
+            name: data.name,
+        },
+    });
+
+    return getCurrentUser(userId);
 };
 
 const refreshUserToken = async (refreshToken: string) => {
@@ -319,6 +340,7 @@ export {
     registerUser,
     loginUser,
     getCurrentUser,
+    updateUserProfile,
     changeUserPassword,
     refreshUserToken,
     logoutUser,

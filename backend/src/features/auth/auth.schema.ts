@@ -40,6 +40,14 @@ export const changePasswordSchema = z.object({
     }
 );
 
+export const updateProfileSchema = z.object({
+    name: nameSchema,
+}).strict();
+
+export type UpdateProfileData = z.infer<
+    typeof updateProfileSchema
+>;
+
 export type ChangePasswordData = z.infer<
     typeof changePasswordSchema
 >;

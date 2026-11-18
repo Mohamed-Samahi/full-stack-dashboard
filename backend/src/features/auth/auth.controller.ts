@@ -4,6 +4,7 @@ import {
     registerUser,
     loginUser,
     getCurrentUser,
+    updateUserProfile,
     refreshUserToken,
     logoutUser,
     changeUserPassword,
@@ -175,6 +176,20 @@ const getMe = async (request: Request, response: Response) => {
     });
 };
 
+const updateMe = async (
+    request: Request,
+    response: Response
+) => {
+    const user = await updateUserProfile(
+        request.user!.id,
+        request.body
+    );
+
+    return response.status(200).json({
+        data: user,
+    });
+};
+
 const logout = async (request: Request, response: Response) => {
     const refreshToken = request.cookies.refreshToken;
 
@@ -256,6 +271,7 @@ export {
     logout,
     refresh,
     getMe,
+    updateMe,
     forgotPassword,
     confirmPasswordReset,
     changePassword,
