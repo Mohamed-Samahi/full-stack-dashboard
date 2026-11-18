@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 
 import {
+    nameSchema,
     registerSchema,
     loginSchema,
     changePasswordSchema,
+    updateProfileSchema,
 } from "../../../../src/features/auth/auth.schema.js";
 
 describe("Authentication Schemas", () => {
@@ -131,6 +133,119 @@ describe("Authentication Schemas", () => {
                     newPassword: password,
                 }).success
             ).toBe(valid);
+        });
+    });
+
+    describe("Profile Update Schema", () => {
+        it.each([
+            ["AB", "AB"],
+            ["A".repeat(100), "A".repeat(100)],
+            ["  Updated Name  ", "Updated Name"],
+            ["  AB  ", "AB"],
+            ["  " + "A".repeat(100) + "  ", "A".repeat(100)],
+            ["محمد أحمد", "محمد أحمد"],
+            ["Jean-Luc O'Connor", "Jean-Luc O'Connor"],
+        ])("should accept and normalize valid names: %s", (name, expected) => {
+            expect(updateProfileSchema.parse({ name }))
+                .toEqual({ name: expected });
+        });
+
+        it.each([
+            {},
+            { name: undefined },
+            { name: null },
+            { name: "" },
+            { name: " " },
+            { name: "\t\n" },
+            { name: "A" },
+            { name: " A " },
+            { name: "A".repeat(101) },
+            { name: 123 },
+            { name: true },
+            { name: [] },
+            { name: {} },
+            { name: "John\u0000Doe" },
+            { name: "\u0000AB" },
+            { name: "AB\u0000" },
+        ])("should reject invalid profile payloads: %j", (payload) => {
+            expect(
+                updateProfileSchema.safeParse(payload).success
+            ).toBe(false);
+        });
+
+        it.each([
+            { id: "another-user-id" },
+            { userId: "another-user-id" },
+            { email: "updated@example.com" },
+            { password: "NewPassword123!" },
+            { currentPassword: "CurrentPassword123!" },
+            { newPassword: "NewPassword123!" },
+            { role: "ADMIN" },
+            { roleId: "admin-role-id" },
+            { permissions: ["user:update"] },
+            { authVersion: 100 },
+            { roleVersion: 100 },
+            { createdAt: "2025-01-01" },
+            { updatedAt: "2025-01-01" },
+            { unsupportedField: true },
+        ])("should reject unsupported profile fields: %j", (fields) => {
+            expect(
+                updateProfileSchema.safeParse({
+                    name: "Updated Name",
+                    ...fields,
+                }).success
+            ).toBe(false);
+        });
+
+        it.each([
+            "AB",
+            "  Valid Name  ",
+            "A".repeat(100),
+            "A".repeat(101),
+            "",
+            " ",
+            "A",
+            "John\u0000Doe",
+        ])("should enforce shared name validation: %s", (name) => {
+            const sharedResult = nameSchema.safeParse(name);
+
+            const registrationResult = registerSchema.safeParse({
+                name,
+                email: "test@example.com",
+                password: "Password123!",
+            });
+
+            const profileResult = updateProfileSchema.safeParse({
+                name,
+            });
+
+            expect(registrationResult.success)
+                .toBe(sharedResult.success);
+
+            expect(profileResult.success)
+                .toBe(sharedResult.success);
+
+            if (
+                sharedResult.success &&
+                registrationResult.success &&
+                profileResult.success
+            ) {
+                expect(registrationResult.data.name)
+                    .toBe(sharedResult.data);
+
+                expect(profileResult.data.name)
+                    .toBe(sharedResult.data);
+            }
+        });
+
+        it("should reject null characters during registration", () => {
+            expect(
+                registerSchema.safeParse({
+                    name: "John\u0000Doe",
+                    email: "test@example.com",
+                    password: "Password123!",
+                }).success
+            ).toBe(false);
         });
     });
 });

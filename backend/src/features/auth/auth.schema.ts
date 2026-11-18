@@ -3,7 +3,11 @@ import { z } from "zod";
 export const nameSchema = z.string()
     .trim()
     .min(2)
-    .max(100);
+    .max(100)
+    .refine(
+        (name) => !name.includes("\u0000"),
+        "Name must not contain null characters"
+    );
 
 const emailSchema = z.string()
     .trim()
