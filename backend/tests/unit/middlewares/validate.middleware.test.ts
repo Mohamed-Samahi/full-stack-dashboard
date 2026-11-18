@@ -94,3 +94,108 @@ describe("Validation Middleware", () => {
         expect(next).not.toHaveBeenCalled();
     });
 });
+
+describe("Query Validation Middleware", () => {
+    const schema = z.strictObject({
+        page: z.string()
+            .transform(Number)
+            .pipe(z.number().int().positive()),
+
+        search: z.string().trim().optional(),
+    });
+
+    it("should store transformed query values in response.locals", () => {
+        const rawQuery = Object.freeze({
+            page: "2",
+            search: "  application  ",
+        });
+
+        const request = {
+            get query() {
+                return rawQuery;
+            },
+        } as unknown as Request;
+
+        const response = {
+            locals: {},
+        } as Response;
+
+        const next = vi.fn();
+
+        validate(schema, "query")(
+            request,
+            response,
+            next
+        );
+
+        expect(response.locals.validatedQuery).toEqual({
+            page: 2,
+            search: "application",
+        });
+
+        expect(next).toHaveBeenCalledOnce();
+    });
+
+    it("should preserve the original read-only request query", () => {
+        const rawQuery = Object.freeze({
+            page: "3",
+        });
+
+        const request = {
+            get query() {
+                return rawQuery;
+            },
+        } as unknown as Request;
+
+        const response = {
+            locals: {},
+        } as Response;
+
+        const next = vi.fn();
+
+        validate(schema, "query")(
+            request,
+            response,
+            next
+        );
+
+        expect(request.query).toBe(rawQuery);
+
+        expect(request.query).toEqual({
+            page: "3",
+        });
+    });
+
+    it.each([
+        { page: "0" },
+        { page: "-1" },
+        { page: "1.5" },
+        { page: "invalid" },
+        { page: ["1", "2"] },
+        { page: "1", unexpected: "value" },
+    ])("should reject invalid query input before forwarding", (query) => {
+        const request = {
+            query,
+        } as unknown as Request;
+
+        const response = {
+            locals: {},
+        } as Response;
+
+        const next = vi.fn();
+
+        expect(() =>
+            validate(schema, "query")(
+                request,
+                response,
+                next
+            )
+        ).toThrow(ZodError);
+
+        expect(next).not.toHaveBeenCalled();
+
+        expect(
+            response.locals.validatedQuery
+        ).toBeUndefined();
+    });
+});
