@@ -31,6 +31,8 @@ model User {
   assignedTickets  Ticket[] @relation("TicketAssignee")
   modifiedTickets  Ticket[] @relation("TicketModifier")
 
+  ticketComments TicketComment[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -124,6 +126,8 @@ model Ticket {
   assigneeId String?
   assignee   User?   @relation("TicketAssignee", fields: [assigneeId], references: [id], onDelete: Restrict)
 
+  comments TicketComment[]
+
   updatedById String?
   updatedBy   User?   @relation("TicketModifier", fields: [updatedById], references: [id], onDelete: Restrict)
 
@@ -133,4 +137,19 @@ model Ticket {
   @@index([requesterId, createdAt])
   @@index([assigneeId, status, createdAt])
   @@index([createdAt, id])
+}
+
+model TicketComment {
+  id      String @id @default(uuid())
+  content String @db.Text
+
+  ticketId String
+  ticket   Ticket @relation(fields: [ticketId], references: [id], onDelete: Restrict)
+
+  authorId String
+  author   User   @relation(fields: [authorId], references: [id], onDelete: Restrict)
+
+  createdAt DateTime @default(now())
+
+  @@index([ticketId, createdAt, id])
 }

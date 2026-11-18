@@ -13,6 +13,29 @@ type TicketParticipant = {
     name: string | null;
 };
 
+type TicketComment = {
+    id: string;
+    ticketId: string;
+    content: string;
+    author: TicketParticipant;
+    createdAt: string;
+};
+
+type TicketCommentEventMap = {
+    "comments.snapshot": {
+        data: TicketComment[];
+    };
+
+    "comment.created": {
+        data: TicketComment;
+    };
+
+    "stream.error": {
+        status: number;
+        message: string;
+    };
+};
+
 type Ticket = {
     id: string;
     title: string;
@@ -80,10 +103,35 @@ const toTicketResponse = (
     updatedAt: ticket.updatedAt.toISOString(),
 });
 
+const ticketCommentSelect = {
+    id: true,
+    ticketId: true,
+    content: true,
+
+    author: {
+        select: ticketParticipantSelect,
+    },
+
+    createdAt: true,
+} satisfies Prisma.TicketCommentSelect;
+
+type TicketCommentRecord = Prisma.TicketCommentGetPayload<{
+    select: typeof ticketCommentSelect;
+}>;
+
+const toTicketCommentResponse = (
+    comment: TicketCommentRecord
+): TicketComment => ({
+    ...comment,
+    createdAt: comment.createdAt.toISOString(),
+});
+
 export {
     ticketParticipantSelect,
     ticketSelect,
     toTicketResponse,
+    ticketCommentSelect,
+    toTicketCommentResponse,
 };
 
 export type {
@@ -93,4 +141,7 @@ export type {
     TicketRecord,
     TicketPagination,
     TicketListResponse,
+    TicketComment,
+    TicketCommentRecord,
+    TicketCommentEventMap,
 };

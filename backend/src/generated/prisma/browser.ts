@@ -52,3 +52,8 @@ export type RolePermission = Prisma.RolePermissionModel
  * 
  */
 export type Ticket = Prisma.TicketModel
+/**
+ * Model TicketComment
+ * 
+ */
+export type TicketComment = Prisma.TicketCommentModel

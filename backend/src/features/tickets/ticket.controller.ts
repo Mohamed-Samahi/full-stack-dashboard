@@ -160,6 +160,9 @@ const updateTicketStatus = async (
 };
 
 export {
+    getActor,
+    getTicketId,
+
     createTicket,
     getTickets,
     getTicketById,

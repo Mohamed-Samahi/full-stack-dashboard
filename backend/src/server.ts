@@ -14,6 +14,10 @@ import {
 
 import logger from "./config/logger.js";
 
+import {
+    closeCommentStreams,
+} from "./features/tickets/comments/comment.events.js";
+
 const PORT = process.env.PORT || 5000;
 
 process.on("uncaughtException", (error) => {
@@ -41,6 +45,8 @@ const startServer = async () => {
                 error,
             });
 
+            closeCommentStreams()
+
             server.close(async () => {
                 await disconnectFromDatabase();
                 process.exit(1);
@@ -50,6 +56,8 @@ const startServer = async () => {
         process.on("SIGTERM", () => {
             logger.info("SIGTERM received. Shutting down gracefully...");
 
+            closeCommentStreams()
+
             server.close(async () => {
                 await disconnectFromDatabase();
                 process.exit(0);
@@ -58,6 +66,8 @@ const startServer = async () => {
 
         process.on("SIGINT", () => {
             logger.info("SIGINT received. Shutting down gracefully...");
+
+            closeCommentStreams()
 
             server.close(async () => {
                 await disconnectFromDatabase();

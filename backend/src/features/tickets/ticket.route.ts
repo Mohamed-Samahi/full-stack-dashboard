@@ -47,6 +47,16 @@ import {
     updateTicketStatus,
 } from "./ticket.controller.js";
 
+import {
+    createCommentSchema,
+} from "./comments/comment.schema.js";
+
+import {
+    getComments,
+    createComment,
+    streamComments,
+} from "./comments/comment.controller.js";
+
 const router = express.Router();
 
 const requireSupportedRole = (
@@ -137,6 +147,28 @@ router.patch(
     validate(ticketParamsSchema, "params"),
     validate(updateTicketStatusSchema),
     updateTicketStatus
+);
+
+router.get(
+    "/:ticketId/comments",
+    authorize(PERMISSIONS.TICKET_READ),
+    validate(ticketParamsSchema, "params"),
+    getComments
+);
+
+router.post(
+    "/:ticketId/comments",
+    authorize(PERMISSIONS.TICKET_COMMENT),
+    validate(ticketParamsSchema, "params"),
+    validate(createCommentSchema),
+    createComment
+);
+
+router.get(
+    "/:ticketId/comments/events",
+    authorize(PERMISSIONS.TICKET_READ),
+    validate(ticketParamsSchema, "params"),
+    streamComments
 );
 
 export default router;
