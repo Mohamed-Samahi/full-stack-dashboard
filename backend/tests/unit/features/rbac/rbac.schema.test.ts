@@ -5,6 +5,7 @@ import {
     updateRoleSchema,
     roleParamsSchema,
     assignUserRoleSchema,
+    userParamsSchema,
 } from "../../../../src/features/rbac/rbac.schema.js";
 
 const validRoleId = "550e8400-e29b-41d4-a716-446655440000";
@@ -137,5 +138,41 @@ describe("RBAC Schemas", () => {
                 roleId,
             }).success).toBe(false);
         });
+    });
+
+    describe("Role Assignment Validation", () => {
+        it("should accept a valid user UUID", () => {
+            expect(userParamsSchema.safeParse({
+                userId: validRoleId,
+            }).success).toBe(true);
+        });
+
+        it.each([
+            "invalid-id",
+            "",
+            undefined,
+            null,
+            123,
+        ])("should reject invalid user ID: %s", (userId) => {
+            expect(userParamsSchema.safeParse({
+                userId,
+            }).success).toBe(false);
+        });
+
+        it.each([
+            { role: "ADMIN" },
+            { userId: validRoleId },
+            { permissions: ["user:update"] },
+            { authVersion: 100 },
+            { email: "other@example.com" },
+        ])(
+            "should reject unsupported assignment fields: %j",
+            (extraFields) => {
+                expect(assignUserRoleSchema.safeParse({
+                    roleId: validRoleId,
+                    ...extraFields,
+                }).success).toBe(false);
+            }
+        );
     });
 });
