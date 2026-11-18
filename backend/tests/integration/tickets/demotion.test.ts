@@ -85,11 +85,17 @@ describe("Ticket Assignment and Employee Demotion Integrity", () => {
 
             const before = await getUser(employee.user.id);
 
-            await changeRole(
+            const response = await changeRole(
                 employee.user.id,
                 targetRoleId,
                 admin.accessToken
             ).expect(409);
+
+            expect(response.body).toEqual({
+                status: "error",
+                message:
+                    "Cannot change employee role while active ticket assignments exist",
+            });
 
             expect(await getUser(employee.user.id))
                 .toEqual(before);

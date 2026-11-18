@@ -58,6 +58,7 @@ describe("RBAC Role Assignment", () => {
         ["USER", "ADMIN"],
         ["USER", "EMPLOYEE"],
         ["EMPLOYEE", "USER"],
+        ["EMPLOYEE", "ADMIN"],
     ])(
         "should allow ADMIN to change %s to %s",
         async (initialRole, targetRole) => {
@@ -443,18 +444,46 @@ describe("RBAC Role Assignment", () => {
             .send({})
             .expect(400);
 
-        await api
-            .patch(`${endpoint}/${user.id}/role`)
-            .set(withAuth(admin.accessToken))
-            .send({
-                roleId: user.roleId,
-                authVersion: 100,
-            })
-            .expect(400);
-
-        expect((await getUser(user.id)).authVersion)
-            .toBe(user.authVersion);
+        expect(await getUser(user.id)).toEqual(user);
     });
+
+    it.each([
+        { permissions: ["user:update"] },
+        { authVersion: 100 },
+        { email: "other@example.com" },
+    ])(
+        "should reject unsupported role assignment fields: %j",
+        async (extraFields) => {
+            const admin = await createAdmin();
+
+            const { user } = await createTestUser({
+                role: "EMPLOYEE",
+            });
+
+            const targetRole = await prisma.role.create({
+                data: {
+                    name: "USER",
+                },
+            });
+
+            const response = await api
+                .patch(`${endpoint}/${user.id}/role`)
+                .set(withAuth(admin.accessToken))
+                .send({
+                    roleId: targetRole.id,
+                    ...extraFields,
+                })
+                .expect(400);
+
+            expect(response.body.status).toBe("error");
+
+            expect(response.body.message).toBe(
+                "Validation failed"
+            );
+
+            expect(await getUser(user.id)).toEqual(user);
+        }
+    );
 
     it("should return 404 for nonexistent users and roles", async () => {
         const admin = await createAdmin();
