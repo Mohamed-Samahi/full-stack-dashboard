@@ -1,9 +1,12 @@
 import winston from "winston";
 
-const { combine, timestamp, errors, json, colorize, simple } = winston.format;
+const { combine, timestamp, errors, json, colorize, simple } =
+    winston.format;
+
+const isProduction = process.env.NODE_ENV === "production";
 
 const logger = winston.createLogger({
-    level: process.env.NODE_ENV === "production" ? "info" : "debug",
+    level: isProduction ? "info" : "debug",
 
     format: combine(
         timestamp(),
@@ -12,25 +15,25 @@ const logger = winston.createLogger({
     ),
 
     transports: [
-        new winston.transports.File({
-            filename: "logs/error.log",
-            level: "error",
-        }),
-
-        new winston.transports.File({
-            filename: "logs/combined.log",
+        new winston.transports.Console({
+            format: isProduction
+                ? combine(timestamp(), errors({ stack: true }), json())
+                : combine(colorize(), simple()),
         }),
     ],
 });
 
-// Human-readable logs during development
-if (process.env.NODE_ENV !== "production") {
+if (!isProduction) {
     logger.add(
-        new winston.transports.Console({
-            format: combine(
-                colorize(),
-                simple()
-            ),
+        new winston.transports.File({
+            filename: "logs/error.log",
+            level: "error",
+        })
+    );
+
+    logger.add(
+        new winston.transports.File({
+            filename: "logs/combined.log",
         })
     );
 }
