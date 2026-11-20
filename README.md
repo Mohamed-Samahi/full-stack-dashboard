@@ -1,5 +1,7 @@
 # Support Ticket Dashboard
 
+[**Public API documentation (Postman)**](https://documenter.getpostman.com/view/37614229/2sBYPv2XmA) — interactive API reference with request payloads, response examples, and authentication requirements.
+
 A role-based support ticket management system built to demonstrate full-stack engineering through secure authentication, controlled ticket workflows, real-time conversations, and operational dashboards.
 
 The project models a typical support environment: users submit requests, employees manage assigned tickets, and administrators oversee operations and access control.
@@ -91,8 +93,6 @@ npm test
 ```
 
 ## Documentation
-
-[**Public API documentation (Postman)**](https://documenter.getpostman.com/view/37614229/2sBYPv2XmA) — interactive API reference with request payloads, response examples, and authentication requirements.
 
 [**Backend documentation**](./backend/README.md) — detailed architecture, API contracts, database model, security design, setup instructions, automated testing, and deployment considerations.
 
