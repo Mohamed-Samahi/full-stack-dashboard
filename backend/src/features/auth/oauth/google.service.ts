@@ -4,7 +4,7 @@ import {
     timingSafeEqual
 } from "node:crypto";
 
-import { googleOAuthClient } from "../../../config/google-oauth.js";
+import { getGoogleOAuthClient } from "../../../config/google-oauth.js";
 
 import { redis } from "../../../config/redis.js";
 
@@ -24,7 +24,7 @@ export type GoogleIdentity = {
 const generateGoogleAuthUrl = () => {
     const state = randomBytes(32).toString("hex");
 
-    const url = googleOAuthClient.generateAuthUrl({
+    const url = getGoogleOAuthClient().generateAuthUrl({
         access_type: "online",
         scope: ["openid", "email", "profile"],
         state,
@@ -78,7 +78,7 @@ const validateGoogleOAuthState = async (
 
 const exchangeGoogleAuthCode = async (code: string) => {
     try {
-        const { tokens } = await googleOAuthClient.getToken(code);
+        const { tokens } = await getGoogleOAuthClient().getToken(code);
 
         if (!tokens.id_token) {
             throw new AppError("Google ID token is missing", 401);
@@ -102,8 +102,10 @@ const exchangeGoogleAuthCode = async (code: string) => {
 };
 
 const verifyGoogleIdToken = async (idToken: string) => {
+    const client = getGoogleOAuthClient();
+
     try {
-        const ticket = await googleOAuthClient.verifyIdToken({
+        const ticket = await client.verifyIdToken({
             idToken,
             audience: process.env.GOOGLE_CLIENT_ID!,
         });
