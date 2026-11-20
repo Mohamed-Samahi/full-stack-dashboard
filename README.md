@@ -92,6 +92,8 @@ npm test
 
 ## Documentation
 
+[**Public API documentation (Postman)**](https://documenter.getpostman.com/view/37614229/2sBYPv2XmA) — interactive API reference with request payloads, response examples, and authentication requirements.
+
 [**Backend documentation**](./backend/README.md) — detailed architecture, API contracts, database model, security design, setup instructions, automated testing, and deployment considerations.
 
 ## Project scope
