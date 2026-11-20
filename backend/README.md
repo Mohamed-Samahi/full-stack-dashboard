@@ -247,6 +247,8 @@ stateDiagram-v2
 
 ## API reference
 
+[**View the public Postman API documentation**](https://documenter.getpostman.com/view/37614229/2sBYPv2XmA) — complete endpoint reference with sample requests, responses, and authentication configuration.
+
 All paths below are relative to `/api/v1`. Protected routes require `Authorization: Bearer <accessToken>`. UUID route parameters refer to database resource IDs.
 
 ### Authentication & account
