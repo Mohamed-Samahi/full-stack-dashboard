@@ -1,5 +1,7 @@
 # Support Ticket Dashboard — Backend
 
+[**View the public Postman API documentation**](https://documenter.getpostman.com/view/37614229/2sBYPv2XmA) — complete endpoint reference with sample requests, responses, and authentication configuration.
+
 A TypeScript REST API for a role-based support ticket management system. The backend manages authentication, ticket workflows, real-time conversations, private attachments, and operational statistics, with PostgreSQL as the source of truth.
 
 Built as the backend of a full-stack portfolio project, with emphasis on resource-level authorization, transactional integrity, maintainable module boundaries, and reproducible integration testing.
@@ -246,8 +248,6 @@ stateDiagram-v2
 - Only actual ticket mutations change the ticket's `updatedAt` and `updatedBy`. Comments, attachments, and no-op administrative edits do not alter parent-ticket modification metadata.
 
 ## API reference
-
-[**View the public Postman API documentation**](https://documenter.getpostman.com/view/37614229/2sBYPv2XmA) — complete endpoint reference with sample requests, responses, and authentication configuration.
 
 All paths below are relative to `/api/v1`. Protected routes require `Authorization: Bearer <accessToken>`. UUID route parameters refer to database resource IDs.
 
